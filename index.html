@@ -1,123 +1,72 @@
-<!DOCTYPE html>
-<html lang="si">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ඉඩම් මැනුම් මෙවලම (Land Measurement Tool)</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 500px;
-            margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        button {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            font-size: 16px;
-            margin: 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            width: 80%;
-        }
-        button.stop { background-color: #dc3545; }
-        button.clear { background-color: #ffc107; color: black; }
-        .result-box {
-            margin-top: 20px;
-            padding: 15px;
-            background: #e9ecef;
-            border-radius: 5px;
-            text-align: left;
-        }
-        canvas {
-            border: 1px solid #ccc;
-            margin-top: 20px;
-            background: #fafafa;
-        }
-        .status { color: #555; font-style: italic; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h2>ඉඩම් මැනුම් මෙවලම 🗺️</h2>
-    <p class="status" id="status">ලක්ෂ්‍යයක් ලබා ගැනීමට සූදානම්...</p>
-    
-    <button onclick="addPoint()">වත්මන් ලක්ෂ්‍යය ලබාගන්න (Add Point)</button>
-    <button class="stop" onclick="calculateArea()">මැනීම අවසන් කරන්න (Calculate)</button>
-    <button class="clear" onclick="resetApp()">මුල සිට ආරම්භ කරන්න (Reset)</button>
-
-    <div class="result-box">
-        <h4>ප්‍රතිඵල:</h4>
-        <p>ලබාගත් ලක්ෂ්‍ය ගණන: <span id="pointCount">0</span></p>
-        <p>වටප්‍රමාණය (Perimeter): <span id="perimeter">0</span> මීටර්</p>
-        <p>වර්ගප්‍රමාණය (Area): <span id="areaSqM">0</span> වර්ග මීටර්</p>
-        <p>පර්චස් ගණන (Perches): <span id="perches">0</span></p>
-    </div>
-
-    <canvas id="mapCanvas" width="300" height="300"></canvas>
-</div>
-
-<script>
     let coordinates = [];
     const R = 6371000; // පෘථිවියේ අරය (මීටර් වලින්)
 
-    // 1. වත්මන් GPS ලක්ෂ්‍යය ලබා ගැනීම
+    // වඩාත් නිවැරදි ලක්ෂ්‍යයක් (Accurate Point) ලබා ගැනීම
     function addPoint() {
         if (!navigator.geolocation) {
             alert("ඔබේ දුරකථනය Geolocation සපයන්නේ නැත.");
             return;
         }
 
-        document.getElementById("status").innerText = "GPS ලක්ෂ්‍යය ලබා ගනිමින්...";
+        document.getElementById("status").innerText = "වඩාත් නිවැරදි ලක්ෂ්‍යයක් සෙවීමට GPS තත්ත්ව පරීක්ෂා කරමින්... (කරුණාකර තත්පර 5ක් නිශ්චලව සිටින්න)";
+        
+        let tempPoints = [];
+        let readingsCount = 0;
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                let lat = position.coords.latitude;
-                let lng = position.coords.longitude;
-                let accuracy = position.coords.accuracy;
+        // තත්පරයෙන් තත්පරයට ලක්ෂ්‍ය 5ක් ලබාගෙන එහි සාමාන්‍යය සෙවීම
+        let gpsInterval = setInterval(() => {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    let lat = position.coords.latitude;
+                    let lng = position.coords.longitude;
+                    let accuracy = position.coords.accuracy;
 
-                // නිරවද්‍යතාව මීටර් 15කට වඩා අඩු නම් වඩා හොඳයි
-                if(accuracy > 15) {
-                    alert("GPS සංඥා දුර්වලයි (නිරවද්‍යතාව: " + accuracy.toFixed(1) + "m). කරුණාකර විවෘත ස්ථානයකට යන්න.");
-                }
+                    // නිරවද්‍යතාවය මීටර් 12කට වඩා හොඳ ලක්ෂ්‍ය පමණක් තාවකාලිකව එකතු කරගනී
+                    if (accuracy <= 12) {
+                        tempPoints.push({lat: lat, lng: lng});
+                    }
+                    
+                    readingsCount++;
+                    document.getElementById("status").innerText = `තත්ත්ව පරීක්ෂාව: ${readingsCount}/5 (නිරවද්‍යතාව: ${accuracy.toFixed(1)}m)`;
 
-                coordinates.push({lat: lat, lng: lng});
-                document.getElementById("pointCount").innerText = coordinates.length;
-                document.getElementById("status").innerText = "ලක්ෂ්‍යයක් සාර්ථකව එකතු කලා! (Accuracy: " + accuracy.toFixed(1) + "m)";
-                
-                drawMap();
-            },
-            (error) => {
-                alert("GPS ලබා ගැනීමට අපොහොසත් විය: " + error.message);
-                document.getElementById("status").innerText = "දෝෂයකි.";
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
+                    // වට 5ක් අවසානයේ සාමාන්‍ය අගය ගණනය කිරීම
+                    if (readingsCount >= 5) {
+                        clearInterval(gpsInterval);
+                        
+                        if (tempPoints.length === 0) {
+                            alert("GPS සංඥා දුර්වලයි! කරුණාකර විවෘත ස්ථානයක තත්පර කිහිපයක් රැඳී සිට නැවත උත්සාහ කරන්න.");
+                            document.getElementById("status").innerText = "දුර්වල සංඥා නිසා ලක්ෂ්‍යය ලබාගත නොහැකි විය.";
+                            return;
+                        }
+
+                        // සාමාන්‍යය (Average) සෙවීම
+                        let avgLat = tempPoints.reduce((sum, p) => sum + p.lat, 0) / tempPoints.length;
+                        let avgLng = tempPoints.reduce((sum, p) => sum + p.lng, 0) / tempPoints.length;
+
+                        coordinates.push({lat: avgLat, lng: avgLng});
+                        document.getElementById("pointCount").innerText = coordinates.length;
+                        document.getElementById("status").innerText = "නිවැරදි ලක්ෂ්‍යයක් සාර්ථකව එකතු කලා! 🎯";
+                        
+                        drawMap();
+                    }
+                },
+                (error) => {
+                    clearInterval(gpsInterval);
+                    alert("GPS ලබා ගැනීමට අපොහොසත් විය: " + error.message);
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        }, 1000); // සෑම තත්පරයකටම වරක් ක්‍රියාත්මක වේ
     }
 
-    // 2. වර්ගප්‍රමාණය සහ වටප්‍රමාණය ගණනය කිරීම
+    // වර්ගප්‍රමාණය සහ වටප්‍රමාණය ගණනය කිරීම
     function calculateArea() {
         if (coordinates.length < 3) {
             alert("ඉඩමක වර්ගප්‍රමාණය සෙවීමට අවම වශයෙන් ලක්ෂ්‍ය 3ක් වත් ලබාගත යුතුය.");
             return;
         }
 
-        // GPS (Lat/Lng) මීටර් (X/Y) වලට පරිවර්තනය කිරීම (Mercator projection approximation)
         let points = [];
-        let refLng = coordinates[0].lng;
-
         for (let i = 0; i < coordinates.length; i++) {
             let latRad = coordinates[i].lat * Math.PI / 180;
             let lngRad = coordinates[i].lng * Math.PI / 180;
@@ -127,14 +76,14 @@
             points.push({x: x, y: y});
         }
 
-        // වටප්‍රමාණය (Perimeter) සෙවීම
+        // වටප්‍රමාණය (Perimeter)
         let perimeter = 0;
         for (let i = 0; i < points.length; i++) {
             let j = (i + 1) % points.length;
             perimeter += Math.sqrt(Math.pow(points[j].x - points[i].x, 2) + Math.pow(points[j].y - points[i].y, 2));
         }
 
-        // වර්ගප්‍රමාණය (Area - Shoelace Formula) සෙවීම
+        // වර්ගප්‍රමාණය (Shoelace Formula)
         let area = 0;
         for (let i = 0; i < points.length; i++) {
             let j = (i + 1) % points.length;
@@ -142,11 +91,8 @@
             area -= points[j].x * points[i].y;
         }
         area = Math.abs(area) / 2;
-
-        // පර්චස් වලට හැරවීම (1 පර්චස් = වර්ග මීටර් 25.29)
         let perches = area / 25.2928;
 
-        // ප්‍රතිඵල පෙන්වීම
         document.getElementById("perimeter").innerText = perimeter.toFixed(2);
         document.getElementById("areaSqM").innerText = area.toFixed(2);
         document.getElementById("perches").innerText = perches.toFixed(2);
@@ -155,34 +101,28 @@
         drawMap(true);
     }
 
-    // 3. මුල සිට ආරම්භ කිරීම
     function resetApp() {
         coordinates = [];
         document.getElementById("pointCount").innerText = "0";
         document.getElementById("perimeter").innerText = "0";
         document.getElementById("areaSqM").innerText = "0";
         document.getElementById("perches").innerText = "0";
-        document.getElementById("status").innerText = "ලක්ෂ්‍යයන් ඉවත් කලා. නැවත ආරම්භ කරන්න.";
-        
+        document.getElementById("status").innerText = "ලක්ෂ්‍යයන් ඉවත් කලා.";
         const canvas = document.getElementById("mapCanvas");
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    // 4. ඉඩමේ හැඩය Canvas එක මත ඇඳීම
     function drawMap(closePath = false) {
         if (coordinates.length === 0) return;
-        
         const canvas = document.getElementById("mapCanvas");
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // සිතියම Canvas එකට ගැලපෙන සේ සැකසීම (Scaling)
         let lats = coordinates.map(c => c.lat);
         let lngs = coordinates.map(c => c.lng);
         let minLat = Math.min(...lats), maxLat = Math.max(...lats);
         let minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-        
         let latRange = maxLat - minLat || 0.00001;
         let lngRange = maxLng - minLng || 0.00001;
 
@@ -191,14 +131,10 @@
         ctx.lineWidth = 3;
 
         for (let i = 0; i < coordinates.length; i++) {
-            // Lat/Lng ලක්ෂ්‍ය Canvas එකේ X, Y වලට හැරවීම
             let x = ((coordinates[i].lng - minLng) / lngRange) * (canvas.width - 40) + 20;
-            let y = canvas.height - (((coordinates[i].lat - minLat) / latRange) * (canvas.height - 40) + 20); // Y අක්ෂය උඩුයටිකුරු කිරීම
-
+            let y = canvas.height - (((coordinates[i].lat - minLat) / latRange) * (canvas.height - 40) + 20);
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
-
-            // ලක්ෂ්‍ය රවුම් කිරීම
             ctx.fillStyle = "red";
             ctx.fillRect(x-3, y-3, 6, 6);
         }
@@ -210,7 +146,3 @@
         }
         ctx.stroke();
     }
-</script>
-
-</body>
-</html>
